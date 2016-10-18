@@ -1,0 +1,98 @@
+. /slack/functions/slack_functions
+. configurable_variables
+
+scriptdirectory="./auto-updater-config/"
+
+## dont touch anything below here
+mkdir -p $scriptdirectory
+
+oxideversionfilepath=$scriptdirectory"oxideversion"
+rustversionfilepath=$scriptdirectory"rustversion"
+
+rustoldversion=$(cat $rustversionfilepath)
+oxideoldversion=$(cat $oxideversionfilepath)
+
+oxidenewversion=""
+rustnewversion=""
+
+oxideoutofdate=false
+rustoutofdate=false
+performtimedrestart=false
+
+check_oxide_and_rust_installs() {
+  echo "Oxide Old Version: " $oxideoldversion
+  echo "Rust Old Version: " $rustoldversion
+
+  oxidenewversion="$(curl -s 'https://api.github.com/repos/OxideMod/Oxide/commits?branch=master&path=/Games/Unity/Oxide.Game.Rust/Dependencies' | jq -r '.[0].sha')"
+  rustnewversion=$("./steamcmd/steamcmd.sh" steamcmd.sh +login anonymous +app_info_update 1 +app_info_print 258550 +quit | grep -EA 5 "^\s+\"public\"$" | grep -E "^\s+\"buildid\"\s+" | tr '[:blank:]"' ' ' | tr -s ' ' | cut -f3 | sed 's/^ //' | cut -c9-15)
+
+  echo "Oxide Version: " $oxidenewversion  
+  echo "Rust Version: " $rustnewversion
+
+  if [ "$oxideoldversion" != "$oxidenewversion" ]; then
+    oxideoutofdate=true
+  fi
+
+  if [ "$rustoldversion" != "$rustnewversion" ]; then
+    rustoutofdate=true
+  fi
+
+  if [ $oxideoutofdate = true ] && [ $rustoutofdate = true ]; then
+    bad "Server: $serveridentity" "Update Watcher" "Both Oxide and Rust out of Date" "Action Taken" "Restarting in 5 minutes with update"
+    
+    perl /rcon/rust-rcon.perl -s $serverip -p $serverrconport -w $serverrconpassword -xq 'say <color=#00FF00>[Auto-Patcher]</color> An update for Rust has been released. Restarting in 5 minutes'
+    good "Server: $serveridentity" "Notified Server" "Restaring in 5 minutes"
+    sleep 1m
+    perl /rcon/rust-rcon.perl -s $serverip -p $serverrconport -w $serverrconpassword -xq 'say <color=#00FF00>[Auto-Patcher]</color> An update for Rust has been released. Restarting in 4 minutes'
+    sleep 1m
+    perl /rcon/rust-rcon.perl -s $serverip -p $serverrconport -w $serverrconpassword -xq 'say <color=#00FF00>[Auto-Patcher]</color> An update for Rust has been released. Restarting in 3 minutes'
+    sleep 1m
+    perl /rcon/rust-rcon.perl -s $serverip -p $serverrconport -w $serverrconpassword -xq 'say <color=#00FF00>[Auto-Patcher]</color> An update for Rust has been released. Restarting in 2 minutes'
+    sleep 1m
+    perl /rcon/rust-rcon.perl -s $serverip -p $serverrconport -w $serverrconpassword -xq 'say <color=#00FF00>[Auto-Patcher]</color> An update for Rust has been released. Restarting in 1 minutes'
+    sleep 1m
+    perl /rcon/rust-rcon.perl -s $serverip -p $serverrconport -w $serverrconpassword -xq 'say <color=#00FF00>[Auto-Patcher]</color> An update for Rust has been released. Restarting...'
+    ./rustserver stop
+    ./zip-updater
+    ./rustserver update
+    ./rustserver start
+    good "Server: $serveridentity" "Rust Updated" ""$rustnewversion"" "Oxide Updated" ""$oxidenewversion""
+    echo $oxidenewversion > $oxideversionfilepath
+    echo $rustnewversion > $rustversionfilepath
+  else
+    if [ $oxideoutofdate = true ]; then
+      bad "Server: $serveridentity" "Oxide Watcher" "New Oxide Version ("$oxidenewversion")" "Action Taken" "Pending Server Update"
+    else
+      if [ $rustoutofdate = true ]; then
+        bad "Server: $serveridentity" "Rust Watcher" "New Server Version ("$rustnewversion")" "Action Taken" "Pending Oxide Update"
+      fi
+    fi
+  fi
+}
+
+install_rust_and_oxide() {
+    ## Get from Github
+    chmod -R 755 ./rustserver
+    ./rustserver auto-install
+    ./zip-updater
+    good "Server: $serveridentity" "Rust Updated" ""$rustnewversion"" "Oxide Updated" ""$oxidenewversion""
+    oxidenewversion="$(curl -s 'https://api.github.com/repos/OxideMod/Oxide/commits?branch=master&path=/Games/Unity/Oxide.Game.Rust/Dependencies' | jq -r '.[0].sha')"
+    rustnewversion=$("./steamcmd/steamcmd.sh" steamcmd.sh +login anonymous +app_info_update 1 +app_info_print 258550 +quit | grep -EA 5 "^\s+\"public\"$" | grep -E "^\s+\"buildid\"\s+" | tr '[:blank:]"' ' ' | tr -s ' ' | cut -f3 | sed 's/^ //' | cut -c9-15)	
+    echo $oxidenewversion > $oxideversionfilepath
+    echo $rustnewversion > $rustversionfilepath
+    ./rustserver start
+}
+
+main() {
+  if [ -d "./serverfiles" ]
+  then
+     echo "Server already installed"
+     check_oxide_and_rust_installs
+  else
+     echo "Rust not installed."
+     chmod -R 755 ./
+     install_rust_and_oxide
+  fi
+}
+
+main

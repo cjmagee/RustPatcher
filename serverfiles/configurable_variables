@@ -1,0 +1,5 @@
+serverip="SERVERIP"
+serverport="GAMEPORT"
+serverrconport="RCONPORT"
+serveridentity="SERVER NAME"
+serverrconpassword="YOURRCONPASSWORD"
