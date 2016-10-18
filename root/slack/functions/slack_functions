@@ -27,7 +27,7 @@
 ########################
 
 #The Slack URL for your webhook
-SLACK_URL_HOOK="https://hooks.slack.com/services/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"
+SLACK_URL_HOOK=""
 
 #SLACK_URL_HOOK CHECK
 if [[ $SLACK_URL_HOOK == *"REPLACE_WITH_YOUR_URL!!!"* ]]
